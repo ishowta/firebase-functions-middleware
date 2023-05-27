@@ -1,0 +1,15 @@
+{
+  "compilerOptions": {
+    "moduleResolution": "node",
+    "lib": ["ES2015", "DOM", "DOM.Iterable"],
+    "jsx": "preserve",
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "strict": true,
+    "useUnknownInCatchVariables": true,
+    "forceConsistentCasingInFileNames": true,
+    "allowJs": false,
+    "noEmit": true
+  },
+  "include": ["src", "test", "example"]
+}
