@@ -1,4 +1,4 @@
-# firebase functions middleware
+# firebase functions middleware (WIP)
 
 functions v1 thin wrapper for append middlewares
 
