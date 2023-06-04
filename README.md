@@ -64,10 +64,7 @@ functions.use(parameterLogger({
         contexts: true,
         response: true
     },
-    level: "DEBUG",
-    excludeFields: [
-        "password"
-    ]
+    level: "DEBUG"
 }))
 ```
 
