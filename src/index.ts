@@ -169,13 +169,13 @@ export class Functions {
       });
   }
 
-  builder(options: DeploymentOptions = {}) {
+  builder = (options: DeploymentOptions = {}) => {
     return new FunctionBuilder(
       options,
       this.middleware,
       this.deploymentMiddleware
     );
-  }
+  };
 }
 
 export class FunctionBuilder {

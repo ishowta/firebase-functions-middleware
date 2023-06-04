@@ -11,7 +11,13 @@ import {
     timeoutLogger,
     idempotenceGuarantor
 } from 'firebase-functions-middleware'
-import { getFirestore } from 'firebase-admin/firestore';
+import { getFirestore, initializeFirestore } from 'firebase-admin/firestore';
+import { getApps, initializeApp } from 'firebase-admin/app';
+
+if (getApps().length === 0) {
+    const firebase = initializeApp();
+    initializeFirestore(firebase);
+}
 
 const app = new Functions()
 app.use(parameterLogger())
@@ -37,7 +43,7 @@ app.useDeployment(({ options }) => ({
     ...options,
 }));
 
-export functions = app.builder
+export const functions = app.builder
 ```
 
 ```ts

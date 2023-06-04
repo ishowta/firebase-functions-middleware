@@ -5,15 +5,21 @@ import {
   parameterLogger,
   timeoutLogger,
 } from '../src';
-import { getFirestore } from 'firebase-admin/firestore';
+import { getFirestore, initializeFirestore } from 'firebase-admin/firestore';
+import { getApps, initializeApp } from 'firebase-admin/app';
 
 test('test', () => {
-  const functions = new Functions();
+  if (getApps().length === 0) {
+    const firebase = initializeApp();
+    initializeFirestore(firebase);
+  }
 
-  functions.use(parameterLogger());
-  functions.use(idempotenceGuarantor(getFirestore));
-  functions.use(timeoutLogger());
-  functions.use(({ functionType, options, parameters, next }) => {
+  const app = new Functions();
+
+  app.use(parameterLogger());
+  app.use(idempotenceGuarantor(getFirestore));
+  app.use(timeoutLogger());
+  app.use(({ functionType, options, parameters, next }) => {
     switch (functionType) {
       case 'https.onRequest': {
         const [req, resp] = parameters;
@@ -27,13 +33,15 @@ test('test', () => {
         return next(...parameters);
     }
   });
-  functions.useDeployment(({ options }) => ({
+  app.useDeployment(({ options }) => ({
     // for reduce cold start latency
     memory: '1GB',
     ...options,
   }));
 
-  functions.builder().https.onCall(() => {});
+  const functions = app.builder;
+
+  functions().https.onCall(() => {});
 
   expect(true).toEqual(true);
 });
