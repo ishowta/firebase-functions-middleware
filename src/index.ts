@@ -98,6 +98,11 @@ export type Middleware = (
   params: MiddlewareParams[keyof FunctionsHandlers]
 ) => void | Promise<void>;
 
+export type DeploymentMiddleware = (params: {
+  functionType: keyof FunctionsHandlers;
+  options: DeploymentOptions;
+}) => DeploymentOptions;
+
 function applyMiddlewares<FunctionType extends keyof FunctionsHandlers>(
   middleware: Middleware,
   options: DeploymentOptions,
@@ -121,26 +126,21 @@ function applyMiddlewares<FunctionType extends keyof FunctionsHandlers>(
   }) as any;
 }
 
-export class FunctionBuilder {
-  deploymentOptions: DeploymentOptions;
+function applyDeploymentMiddleware(
+  functionType: keyof FunctionsHandlers,
+  options: DeploymentOptions,
+  deploymentMiddleware: DeploymentMiddleware
+) {
+  return deploymentMiddleware({ functionType, options });
+}
+
+export class Functions {
   middleware: Middleware;
+  deploymentMiddleware: DeploymentMiddleware;
 
-  constructor(options: DeploymentOptions = {}) {
+  constructor() {
     this.middleware = ({ parameters, next }) => next(...parameters);
-    this.deploymentOptions = options;
-  }
-
-  region(...regions: Parameters<OriginalFunctionBuilder['region']>) {
-    this.deploymentOptions.regions = regions;
-    return this;
-  }
-
-  runWith(runtimeOptions: RuntimeOptions) {
-    this.deploymentOptions = {
-      ...this.deploymentOptions,
-      ...runtimeOptions,
-    };
-    return this;
+    this.deploymentMiddleware = ({ options }) => options;
   }
 
   use(middleware: Middleware) {
@@ -160,22 +160,71 @@ export class FunctionBuilder {
       } as any);
   }
 
+  useDeployment(deploymentMiddleware: DeploymentMiddleware) {
+    const prevDeploymentMiddleware = this.deploymentMiddleware;
+    this.deploymentMiddleware = ({ functionType, options }) =>
+      deploymentMiddleware({
+        functionType,
+        options: prevDeploymentMiddleware({ functionType, options }),
+      });
+  }
+
+  builder(options: DeploymentOptions = {}) {
+    return new FunctionBuilder(
+      options,
+      this.middleware,
+      this.deploymentMiddleware
+    );
+  }
+}
+
+export class FunctionBuilder {
+  constructor(
+    private additionalDeploymentOptions: DeploymentOptions,
+    private middleware: Middleware,
+    private deploymentMiddleware: DeploymentMiddleware
+  ) {}
+
+  region(...regions: Parameters<OriginalFunctionBuilder['region']>) {
+    this.additionalDeploymentOptions.regions = regions;
+    return this;
+  }
+
+  runWith(runtimeOptions: RuntimeOptions) {
+    this.additionalDeploymentOptions = {
+      ...this.additionalDeploymentOptions,
+      ...runtimeOptions,
+    };
+    return this;
+  }
+
+  private get options() {
+    return (functionType: keyof FunctionsHandlers) =>
+      applyDeploymentMiddleware(
+        functionType,
+        this.additionalDeploymentOptions,
+        this.deploymentMiddleware
+      );
+  }
+
   get https() {
     return {
       onRequest: (handler: FunctionsHandlers['https.onRequest']) =>
-        new OriginalFunctionBuilder(this.deploymentOptions).https.onRequest(
+        new OriginalFunctionBuilder(
+          this.options('https.onRequest')
+        ).https.onRequest(
           applyMiddlewares(
             this.middleware,
-            this.deploymentOptions,
+            this.options('https.onRequest'),
             'https.onRequest',
             handler
           )
         ),
       onCall: (handler: FunctionsHandlers['https.onCall']) =>
-        new OriginalFunctionBuilder(this.deploymentOptions).https.onCall(
+        new OriginalFunctionBuilder(this.options('https.onCall')).https.onCall(
           applyMiddlewares(
             this.middleware,
-            this.deploymentOptions,
+            this.options('https.onCall'),
             'https.onCall',
             handler
           )
@@ -187,10 +236,11 @@ export class FunctionBuilder {
     return {
       taskQueue: (options?: TaskQueueOptions) =>
         new TaskQueueBuilder(
-          new OriginalFunctionBuilder(this.deploymentOptions).tasks.taskQueue(
-            options
-          ),
-          this.deploymentOptions,
+          (functionType: keyof FunctionsHandlers) =>
+            new OriginalFunctionBuilder(
+              this.options(functionType)
+            ).tasks.taskQueue(options),
+          this.options,
           this.middleware
         ),
     };
@@ -200,18 +250,20 @@ export class FunctionBuilder {
     return {
       instance: (instance: string) =>
         new InstanceBuilder(
-          new OriginalFunctionBuilder(this.deploymentOptions).database.instance(
-            instance
-          ),
-          this.deploymentOptions,
+          (functionType: keyof FunctionsHandlers) =>
+            new OriginalFunctionBuilder(
+              this.options(functionType)
+            ).database.instance(instance),
+          this.options,
           this.middleware
         ),
       ref: <Ref extends string>(path: Ref) =>
         new RefBuilder(
-          new OriginalFunctionBuilder(this.deploymentOptions).database.ref(
-            path
-          ),
-          this.deploymentOptions,
+          (functionType: keyof FunctionsHandlers) =>
+            new OriginalFunctionBuilder(
+              this.options(functionType)
+            ).database.ref(path),
+          this.options,
           this.middleware
         ),
     };
@@ -221,10 +273,11 @@ export class FunctionBuilder {
     return {
       document: <Path extends string>(path: Path) =>
         new DocumentBuilder(
-          new OriginalFunctionBuilder(
-            this.deploymentOptions
-          ).firestore.document(path),
-          this.deploymentOptions,
+          (functionType: keyof FunctionsHandlers) =>
+            new OriginalFunctionBuilder(
+              this.options(functionType)
+            ).firestore.document(path),
+          this.options,
           this.middleware
         ),
     };
@@ -234,10 +287,11 @@ export class FunctionBuilder {
     return {
       event: (analyticsEventType: string) =>
         new AnalyticsEventBuilder(
-          new OriginalFunctionBuilder(this.deploymentOptions).analytics.event(
-            analyticsEventType
-          ),
-          this.deploymentOptions,
+          (functionType: keyof FunctionsHandlers) =>
+            new OriginalFunctionBuilder(
+              this.options(functionType)
+            ).analytics.event(analyticsEventType),
+          this.options,
           this.middleware
         ),
     };
@@ -247,11 +301,11 @@ export class FunctionBuilder {
     return {
       onUpdate: (handler: FunctionsHandlers['remoteConfig.onUpdate']) => {
         return new OriginalFunctionBuilder(
-          this.deploymentOptions
+          this.options('remoteConfig.onUpdate')
         ).remoteConfig.onUpdate(
           applyMiddlewares(
             this.middleware,
-            this.deploymentOptions,
+            this.options('remoteConfig.onUpdate'),
             'remoteConfig.onUpdate',
             handler
           )
@@ -264,16 +318,20 @@ export class FunctionBuilder {
     return {
       bucket: (bucket?: string) =>
         new BucketBuilder(
-          new OriginalFunctionBuilder(this.deploymentOptions).storage.bucket(
-            bucket
-          ),
-          this.deploymentOptions,
+          (functionType: keyof FunctionsHandlers) =>
+            new OriginalFunctionBuilder(
+              this.options(functionType)
+            ).storage.bucket(bucket),
+          this.options,
           this.middleware
         ),
       object: () =>
         new ObjectBuilder(
-          new OriginalFunctionBuilder(this.deploymentOptions).storage.object(),
-          this.deploymentOptions,
+          (functionType: keyof FunctionsHandlers) =>
+            new OriginalFunctionBuilder(
+              this.options(functionType)
+            ).storage.object(),
+          this.options,
           this.middleware
         ),
     };
@@ -283,18 +341,20 @@ export class FunctionBuilder {
     return {
       topic: (topic: string) =>
         new TopicBuilder(
-          new OriginalFunctionBuilder(this.deploymentOptions).pubsub.topic(
-            topic
-          ),
-          this.deploymentOptions,
+          (functionType: keyof FunctionsHandlers) =>
+            new OriginalFunctionBuilder(
+              this.options(functionType)
+            ).pubsub.topic(topic),
+          this.options,
           this.middleware
         ),
       schedule: (schedule: string) =>
         new ScheduleBuilder(
-          new OriginalFunctionBuilder(this.deploymentOptions).pubsub.schedule(
-            schedule
-          ),
-          this.deploymentOptions,
+          (functionType: keyof FunctionsHandlers) =>
+            new OriginalFunctionBuilder(
+              this.options(functionType)
+            ).pubsub.schedule(schedule),
+          this.options,
           this.middleware
         ),
     };
@@ -304,10 +364,11 @@ export class FunctionBuilder {
     return {
       user: (userOptions?: UserOptions) =>
         new UserBuilder(
-          new OriginalFunctionBuilder(this.deploymentOptions).auth.user(
-            userOptions
-          ),
-          this.deploymentOptions,
+          (functionType: keyof FunctionsHandlers) =>
+            new OriginalFunctionBuilder(this.options(functionType)).auth.user(
+              userOptions
+            ),
+          this.options,
           this.middleware
         ),
     };
@@ -317,10 +378,11 @@ export class FunctionBuilder {
     return {
       testMatrix: () =>
         new TestMatrixBuilder(
-          new OriginalFunctionBuilder(
-            this.deploymentOptions
-          ).testLab.testMatrix(),
-          this.deploymentOptions,
+          (functionType: keyof FunctionsHandlers) =>
+            new OriginalFunctionBuilder(
+              this.options(functionType)
+            ).testLab.testMatrix(),
+          this.options,
           this.middleware
         ),
     };
@@ -329,14 +391,19 @@ export class FunctionBuilder {
 
 export class InstanceBuilder {
   constructor(
-    private originalInstanceBuilder: OriginalInstanceBuilder,
-    private options: DeploymentOptions,
+    private originalInstanceBuilder: (
+      functionType: keyof FunctionsHandlers
+    ) => OriginalInstanceBuilder,
+    private options: (
+      functionType: keyof FunctionsHandlers
+    ) => DeploymentOptions,
     private middleware: Middleware
   ) {}
 
   ref<Ref extends string>(path: Ref) {
     return new RefBuilder(
-      this.originalInstanceBuilder.ref(path),
+      (functionType: keyof FunctionsHandlers) =>
+        this.originalInstanceBuilder(functionType).ref(path),
       this.options,
       this.middleware
     );
@@ -345,16 +412,20 @@ export class InstanceBuilder {
 
 export class RefBuilder<Ref extends string> {
   constructor(
-    private originalRefBuilder: OriginalRefBuilder<Ref>,
-    private options: DeploymentOptions,
+    private originalRefBuilder: (
+      functionType: keyof FunctionsHandlers
+    ) => OriginalRefBuilder<Ref>,
+    private options: (
+      functionType: keyof FunctionsHandlers
+    ) => DeploymentOptions,
     private middleware: Middleware
   ) {}
 
   onWrite(handler: Parameters<OriginalDocumentBuilder<Ref>['onWrite']>[0]) {
-    return this.originalRefBuilder.onWrite(
+    return this.originalRefBuilder('database.ref.onWrite').onWrite(
       applyMiddlewares(
         this.middleware,
-        this.options,
+        this.options('database.ref.onWrite'),
         'database.ref.onWrite',
         handler as any
       )
@@ -362,10 +433,10 @@ export class RefBuilder<Ref extends string> {
   }
 
   onUpdate(handler: Parameters<OriginalDocumentBuilder<Ref>['onUpdate']>[0]) {
-    return this.originalRefBuilder.onUpdate(
+    return this.originalRefBuilder('database.ref.onUpdate').onUpdate(
       applyMiddlewares(
         this.middleware,
-        this.options,
+        this.options('database.ref.onUpdate'),
         'database.ref.onUpdate',
         handler as any
       )
@@ -373,10 +444,10 @@ export class RefBuilder<Ref extends string> {
   }
 
   onCreate(handler: Parameters<OriginalDocumentBuilder<Ref>['onCreate']>[0]) {
-    return this.originalRefBuilder.onCreate(
+    return this.originalRefBuilder('database.ref.onCreate').onCreate(
       applyMiddlewares(
         this.middleware,
-        this.options,
+        this.options('database.ref.onCreate'),
         'database.ref.onCreate',
         handler as any
       )
@@ -384,10 +455,10 @@ export class RefBuilder<Ref extends string> {
   }
 
   onDelete(handler: Parameters<OriginalDocumentBuilder<Ref>['onDelete']>[0]) {
-    return this.originalRefBuilder.onDelete(
+    return this.originalRefBuilder('database.ref.onDelete').onDelete(
       applyMiddlewares(
         this.middleware,
-        this.options,
+        this.options('database.ref.onDelete'),
         'database.ref.onDelete',
         handler as any
       )
@@ -397,16 +468,22 @@ export class RefBuilder<Ref extends string> {
 
 export class TaskQueueBuilder {
   constructor(
-    private originalTaskQueueBuilder: OriginalTaskQueueBuilder,
-    private options: DeploymentOptions,
+    private originalTaskQueueBuilder: (
+      functionType: keyof FunctionsHandlers
+    ) => OriginalTaskQueueBuilder,
+    private options: (
+      functionType: keyof FunctionsHandlers
+    ) => DeploymentOptions,
     private middleware: Middleware
   ) {}
 
   onDispatch(handler: Parameters<OriginalTaskQueueBuilder['onDispatch']>[0]) {
-    return this.originalTaskQueueBuilder.onDispatch(
+    return this.originalTaskQueueBuilder(
+      'tasks.taskQueue.onDispatch'
+    ).onDispatch(
       applyMiddlewares(
         this.middleware,
-        this.options,
+        this.options('tasks.taskQueue.onDispatch'),
         'tasks.taskQueue.onDispatch',
         handler
       )
@@ -416,16 +493,20 @@ export class TaskQueueBuilder {
 
 export class DocumentBuilder<Path extends string> {
   constructor(
-    private originalDocumentBuilder: OriginalDocumentBuilder<Path>,
-    private options: DeploymentOptions,
+    private originalDocumentBuilder: (
+      functionType: keyof FunctionsHandlers
+    ) => OriginalDocumentBuilder<Path>,
+    private options: (
+      functionType: keyof FunctionsHandlers
+    ) => DeploymentOptions,
     private middleware: Middleware
   ) {}
 
   onWrite(handler: Parameters<OriginalDocumentBuilder<Path>['onWrite']>[0]) {
-    return this.originalDocumentBuilder.onWrite(
+    return this.originalDocumentBuilder('firestore.document.onWrite').onWrite(
       applyMiddlewares(
         this.middleware,
-        this.options,
+        this.options('firestore.document.onWrite'),
         'firestore.document.onWrite',
         handler as any
       )
@@ -433,10 +514,10 @@ export class DocumentBuilder<Path extends string> {
   }
 
   onUpdate(handler: Parameters<OriginalDocumentBuilder<Path>['onUpdate']>[0]) {
-    return this.originalDocumentBuilder.onUpdate(
+    return this.originalDocumentBuilder('firestore.document.onUpdate').onUpdate(
       applyMiddlewares(
         this.middleware,
-        this.options,
+        this.options('firestore.document.onUpdate'),
         'firestore.document.onUpdate',
         handler as any
       )
@@ -444,10 +525,10 @@ export class DocumentBuilder<Path extends string> {
   }
 
   onCreate(handler: Parameters<OriginalDocumentBuilder<Path>['onCreate']>[0]) {
-    return this.originalDocumentBuilder.onCreate(
+    return this.originalDocumentBuilder('firestore.document.onCreate').onCreate(
       applyMiddlewares(
         this.middleware,
-        this.options,
+        this.options('firestore.document.onCreate'),
         'firestore.document.onCreate',
         handler as any
       )
@@ -455,10 +536,10 @@ export class DocumentBuilder<Path extends string> {
   }
 
   onDelete(handler: Parameters<OriginalDocumentBuilder<Path>['onDelete']>[0]) {
-    return this.originalDocumentBuilder.onDelete(
+    return this.originalDocumentBuilder('firestore.document.onDelete').onDelete(
       applyMiddlewares(
         this.middleware,
-        this.options,
+        this.options('firestore.document.onDelete'),
         'firestore.document.onDelete',
         handler as any
       )
@@ -468,16 +549,20 @@ export class DocumentBuilder<Path extends string> {
 
 export class AnalyticsEventBuilder {
   constructor(
-    private originalAnalyticsEventBuilder: OriginalAnalyticsEventBuilder,
-    private options: DeploymentOptions,
+    private originalAnalyticsEventBuilder: (
+      functionType: keyof FunctionsHandlers
+    ) => OriginalAnalyticsEventBuilder,
+    private options: (
+      functionType: keyof FunctionsHandlers
+    ) => DeploymentOptions,
     private middleware: Middleware
   ) {}
 
   onLog(handler: Parameters<OriginalAnalyticsEventBuilder['onLog']>[0]) {
-    return this.originalAnalyticsEventBuilder.onLog(
+    return this.originalAnalyticsEventBuilder('analytics.event.onLog').onLog(
       applyMiddlewares(
         this.middleware,
-        this.options,
+        this.options('analytics.event.onLog'),
         'analytics.event.onLog',
         handler
       )
@@ -487,14 +572,19 @@ export class AnalyticsEventBuilder {
 
 export class BucketBuilder {
   constructor(
-    private originalBucketBuilderBuilder: OriginalBucketBuilder,
-    private options: DeploymentOptions,
+    private originalBucketBuilderBuilder: (
+      functionType: keyof FunctionsHandlers
+    ) => OriginalBucketBuilder,
+    private options: (
+      functionType: keyof FunctionsHandlers
+    ) => DeploymentOptions,
     private middleware: Middleware
   ) {}
 
   object() {
     return new ObjectBuilder(
-      this.originalBucketBuilderBuilder.object(),
+      (functionType: keyof FunctionsHandlers) =>
+        this.originalBucketBuilderBuilder(functionType).object(),
       this.options,
       this.middleware
     );
@@ -503,16 +593,20 @@ export class BucketBuilder {
 
 export class ObjectBuilder {
   constructor(
-    private originalObjectBuilder: OriginalObjectBuilder,
-    private options: DeploymentOptions,
+    private originalObjectBuilder: (
+      functionType: keyof FunctionsHandlers
+    ) => OriginalObjectBuilder,
+    private options: (
+      functionType: keyof FunctionsHandlers
+    ) => DeploymentOptions,
     private middleware: Middleware
   ) {}
 
   onArchive(handler: Parameters<OriginalObjectBuilder['onArchive']>[0]) {
-    return this.originalObjectBuilder.onArchive(
+    return this.originalObjectBuilder('storage.object.onArchive').onArchive(
       applyMiddlewares(
         this.middleware,
-        this.options,
+        this.options('storage.object.onArchive'),
         'storage.object.onArchive',
         handler
       )
@@ -520,10 +614,10 @@ export class ObjectBuilder {
   }
 
   onDelete(handler: Parameters<OriginalObjectBuilder['onDelete']>[0]) {
-    return this.originalObjectBuilder.onDelete(
+    return this.originalObjectBuilder('storage.object.onDelete').onDelete(
       applyMiddlewares(
         this.middleware,
-        this.options,
+        this.options('storage.object.onDelete'),
         'storage.object.onDelete',
         handler
       )
@@ -531,10 +625,10 @@ export class ObjectBuilder {
   }
 
   onFinalize(handler: Parameters<OriginalObjectBuilder['onFinalize']>[0]) {
-    return this.originalObjectBuilder.onFinalize(
+    return this.originalObjectBuilder('storage.object.onFinalize').onFinalize(
       applyMiddlewares(
         this.middleware,
-        this.options,
+        this.options('storage.object.onFinalize'),
         'storage.object.onFinalize',
         handler
       )
@@ -544,10 +638,12 @@ export class ObjectBuilder {
   onMetadataUpdate(
     handler: Parameters<OriginalObjectBuilder['onMetadataUpdate']>[0]
   ) {
-    return this.originalObjectBuilder.onMetadataUpdate(
+    return this.originalObjectBuilder(
+      'storage.object.onMetadataUpdate'
+    ).onMetadataUpdate(
       applyMiddlewares(
         this.middleware,
-        this.options,
+        this.options('storage.object.onMetadataUpdate'),
         'storage.object.onMetadataUpdate',
         handler
       )
@@ -557,16 +653,20 @@ export class ObjectBuilder {
 
 export class TopicBuilder {
   constructor(
-    private originalTopicBuilder: OriginalTopicBuilder,
-    private options: DeploymentOptions,
+    private originalTopicBuilder: (
+      functionType: keyof FunctionsHandlers
+    ) => OriginalTopicBuilder,
+    private options: (
+      functionType: keyof FunctionsHandlers
+    ) => DeploymentOptions,
     private middleware: Middleware
   ) {}
 
   onPublish(handler: Parameters<OriginalTopicBuilder['onPublish']>[0]) {
-    return this.originalTopicBuilder.onPublish(
+    return this.originalTopicBuilder('pubsub.topic.onPublish').onPublish(
       applyMiddlewares(
         this.middleware,
-        this.options,
+        this.options('pubsub.topic.onPublish'),
         'pubsub.topic.onPublish',
         handler
       )
@@ -575,27 +675,49 @@ export class TopicBuilder {
 }
 
 export class ScheduleBuilder {
+  private _config: ScheduleRetryConfig | undefined = undefined;
+  private _timeZone: string | undefined = undefined;
+
   constructor(
-    private originalScheduleBuilder: OriginalScheduleBuilder,
-    private options: DeploymentOptions,
+    private originalScheduleBuilder: (
+      functionType: keyof FunctionsHandlers
+    ) => OriginalScheduleBuilder,
+    private options: (
+      functionType: keyof FunctionsHandlers
+    ) => DeploymentOptions,
     private middleware: Middleware
   ) {}
 
   retryConfig(config: ScheduleRetryConfig): ScheduleBuilder {
-    this.originalScheduleBuilder.retryConfig(config);
+    this._config = {
+      ...(this._config ?? {}),
+      ...config,
+    };
     return this;
   }
 
   timeZone(timeZone: string): ScheduleBuilder {
-    this.originalScheduleBuilder.timeZone(timeZone);
+    this._timeZone = timeZone;
     return this;
   }
 
+  private apply(builder: OriginalScheduleBuilder) {
+    if (this._config) {
+      builder.retryConfig(this._config);
+    }
+    if (this._timeZone != null) {
+      builder.timeZone(this._timeZone);
+    }
+    return builder;
+  }
+
   onRun(handler: Parameters<OriginalScheduleBuilder['onRun']>[0]) {
-    return this.originalScheduleBuilder.onRun(
+    return this.apply(
+      this.originalScheduleBuilder('pubsub.schedule.onRun')
+    ).onRun(
       applyMiddlewares(
         this.middleware,
-        this.options,
+        this.options('pubsub.schedule.onRun'),
         'pubsub.schedule.onRun',
         handler
       )
@@ -605,16 +727,20 @@ export class ScheduleBuilder {
 
 export class UserBuilder {
   constructor(
-    private originalUserBuilder: OriginalUserBuilder,
-    private options: DeploymentOptions,
+    private originalUserBuilder: (
+      functionType: keyof FunctionsHandlers
+    ) => OriginalUserBuilder,
+    private options: (
+      functionType: keyof FunctionsHandlers
+    ) => DeploymentOptions,
     private middleware: Middleware
   ) {}
 
   onCreate(handler: Parameters<OriginalUserBuilder['onCreate']>[0]) {
-    return this.originalUserBuilder.onCreate(
+    return this.originalUserBuilder('auth.user.onCreate').onCreate(
       applyMiddlewares(
         this.middleware,
-        this.options,
+        this.options('auth.user.onCreate'),
         'auth.user.onCreate',
         handler
       )
@@ -622,10 +748,10 @@ export class UserBuilder {
   }
 
   onDelete(handler: Parameters<OriginalUserBuilder['onDelete']>[0]) {
-    return this.originalUserBuilder.onDelete(
+    return this.originalUserBuilder('auth.user.onDelete').onDelete(
       applyMiddlewares(
         this.middleware,
-        this.options,
+        this.options('auth.user.onDelete'),
         'auth.user.onDelete',
         handler
       )
@@ -633,10 +759,10 @@ export class UserBuilder {
   }
 
   beforeCreate(handler: Parameters<OriginalUserBuilder['beforeCreate']>[0]) {
-    return this.originalUserBuilder.beforeCreate(
+    return this.originalUserBuilder('auth.user.beforeCreate').beforeCreate(
       applyMiddlewares(
         this.middleware,
-        this.options,
+        this.options('auth.user.beforeCreate'),
         'auth.user.beforeCreate',
         handler
       )
@@ -644,10 +770,10 @@ export class UserBuilder {
   }
 
   beforeSignIn(handler: Parameters<OriginalUserBuilder['beforeSignIn']>[0]) {
-    return this.originalUserBuilder.beforeSignIn(
+    return this.originalUserBuilder('auth.user.beforeSignIn').beforeSignIn(
       applyMiddlewares(
         this.middleware,
-        this.options,
+        this.options('auth.user.beforeSignIn'),
         'auth.user.beforeSignIn',
         handler
       )
@@ -657,16 +783,22 @@ export class UserBuilder {
 
 export class TestMatrixBuilder {
   constructor(
-    private originalTestMatrixBuilder: OriginalTestMatrixBuilder,
-    private options: DeploymentOptions,
+    private originalTestMatrixBuilder: (
+      functionType: keyof FunctionsHandlers
+    ) => OriginalTestMatrixBuilder,
+    private options: (
+      functionType: keyof FunctionsHandlers
+    ) => DeploymentOptions,
     private middleware: Middleware
   ) {}
 
   onComplete(handler: Parameters<OriginalTestMatrixBuilder['onComplete']>[0]) {
-    return this.originalTestMatrixBuilder.onComplete(
+    return this.originalTestMatrixBuilder(
+      'testlab.testmatrix.onComplete'
+    ).onComplete(
       applyMiddlewares(
         this.middleware,
-        this.options,
+        this.options('testlab.testmatrix.onComplete'),
         'testlab.testmatrix.onComplete',
         handler
       )

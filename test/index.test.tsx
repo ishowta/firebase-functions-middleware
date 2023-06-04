@@ -1,22 +1,19 @@
 import { logger } from 'firebase-functions/v1';
 import {
-  FunctionBuilder,
+  Functions,
   idempotenceGuarantor,
   parameterLogger,
   timeoutLogger,
 } from '../src';
+import { getFirestore } from 'firebase-admin/firestore';
 
 test('test', () => {
-  const functions = new FunctionBuilder({});
+  const functions = new Functions();
 
   functions.use(parameterLogger());
-  functions.use(idempotenceGuarantor());
+  functions.use(idempotenceGuarantor(getFirestore));
   functions.use(timeoutLogger());
-  functions.runWith({
-    // for reduce cold start latency
-    memory: '1GB',
-  });
-  functions.use(({ functionType, parameters, next }) => {
+  functions.use(({ functionType, options, parameters, next }) => {
     switch (functionType) {
       case 'https.onRequest': {
         const [req, resp] = parameters;
@@ -30,5 +27,13 @@ test('test', () => {
         return next(...parameters);
     }
   });
+  functions.useDeployment(({ options }) => ({
+    // for reduce cold start latency
+    memory: '1GB',
+    ...options,
+  }));
+
+  functions.builder().https.onCall(() => {});
+
   expect(true).toEqual(true);
 });

@@ -11,46 +11,41 @@ import {
     timeoutLogger,
     idempotenceGuarantor
 } from 'firebase-functions-middleware'
+import { getFirestore } from 'firebase-admin/firestore';
 
-export const functions = new Functions()
-
-functions.use(parameterLogger())
-functions.use(idempotenceGuarantor())
-functions.use(timeoutLogger())
-functions.runWith({
-    // for reduce cold start latency
-    memory: "1G"
-})
-functions.use((parameters, next) => {
-    switch(parameters.type){
-        case 'https.onRequest':
-            const res = (...params: any[]) => {
-                return parameters.res(...params)
-            }
-            return next({...parameters, res})
+const app = new Functions()
+app.use(parameterLogger())
+app.use(idempotenceGuarantor(getFirestore))
+app.use(timeoutLogger())
+app.use(({ functionType, options, parameters, next }) => {
+    switch (functionType) {
+        case 'https.onRequest': {
+            const [req, resp] = parameters;
+            resp.status = (code: number) => {
+                logger.log(`status code: ${code}`);
+                return resp;
+            };
+            return next(req, resp);
+        }
         default:
-            return next(parameters)
+            return next(...parameters);
     }
-})
-functions.providers("firestore", "storage").runWith({
-    timeoutSeconds: 540
-})
+});
+app.useDeployment(({ options }) => ({
+    // for reduce cold start latency
+    memory: '1GB',
+    ...options,
+}));
+
+export functions = app.builder
 ```
 
-## pre defined middlewares
-
-It is recommended to apply the pre-built set if there is no opinion.
-
 ```ts
-import {
-    Functions,
-    applyRecommended
-} from 'firebase-functions-middleware'
+import { functions } from '../functions'
 
-export const functions = new Functions()
-
-applyRecommended(functions)
-
+export const helloWorld = functions().https.onCall(() => {
+    return "Hello world!"
+})
 ```
 
 ### parameterLogger
