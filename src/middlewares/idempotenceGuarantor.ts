@@ -3,7 +3,14 @@ import { EventContext, logger } from 'firebase-functions/v1';
 import { Middleware } from '..';
 
 export const idempotenceGuarantor =
-  (getFirestore: () => Firestore | Promise<Firestore>): Middleware =>
+  (
+    getFirestore: () => Firestore | Promise<Firestore>,
+    middlewareOptions: {
+      firestoreCollectionName: string;
+    } = {
+      firestoreCollectionName: 'events',
+    }
+  ): Middleware =>
   async ({ functionType, options, parameters, next }) => {
     let context: EventContext | undefined = undefined;
     switch (functionType) {
@@ -26,7 +33,9 @@ export const idempotenceGuarantor =
     }
 
     const firestore = await getFirestore();
-    const eventsRef = firestore.collection('events');
+    const eventsRef = firestore.collection(
+      middlewareOptions.firestoreCollectionName
+    );
     const eventRef = eventsRef.doc(context.eventId);
     const called = await firestore.runTransaction(async (t) => {
       const event = await t.get(eventRef);

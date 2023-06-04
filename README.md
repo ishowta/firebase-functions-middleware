@@ -52,6 +52,11 @@ export const helloWorld = functions().https.onCall(() => {
 
 Logging data, contexts and response.
 
+Note:
+
+- Some data will be filtered
+- Sensitive data may be displayed
+
 ```ts
 functions.use(parameterLogger({
     target: {
@@ -72,7 +77,7 @@ For functions running `at least once`, use firestore to achieve `exactly once`.
 
 ```ts
 functions.use(idempotenceGuarantor({
-    firestoreCollectionName: "idempotences"
+    firestoreCollectionName: "events" // default
 }))
 ```
 

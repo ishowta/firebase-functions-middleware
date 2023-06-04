@@ -1,14 +1,78 @@
 import { logger } from 'firebase-functions/v1';
 import { Middleware } from '..';
+import { LogSeverity } from 'firebase-functions/logger';
 
 export const parameterLogger =
-  (): Middleware =>
+  (
+    middlewareOptions: {
+      target: {
+        input: boolean;
+        contexts: boolean;
+        output: boolean;
+      };
+      severity: LogSeverity;
+    } = {
+      target: {
+        input: true,
+        contexts: true,
+        output: true,
+      },
+      severity: 'DEBUG',
+    }
+  ): Middleware =>
   ({ functionType, options, parameters, next }) => {
-    logger.debug('request', {
-      parameters,
-    });
-    const result = next(...parameters);
-    logger.debug('response', {
-      result,
-    });
+    if (middlewareOptions.target.input || middlewareOptions.target.contexts) {
+      let input: unknown = undefined;
+      let context: unknown = undefined;
+      switch (functionType) {
+        case 'https.onRequest': {
+          break;
+        }
+        case 'https.onCall': {
+          input = parameters[0];
+          const callableContext = parameters[1];
+          context = {
+            ...callableContext,
+            rawRequest: {
+              ...callableContext.rawRequest,
+              rawBody: '[Filtered]',
+              body: '[Filtered]',
+              rawHeaders: callableContext.rawRequest.rawHeaders.map(
+                (headerStr) =>
+                  headerStr.startsWith('Bearer ')
+                    ? 'Bearer [Filtered]'
+                    : headerStr
+              ),
+            },
+          };
+          break;
+        }
+        case 'pubsub.schedule.onRun': {
+          context = parameters[0];
+          break;
+        }
+        default: {
+          input = parameters[0];
+          context = parameters[1];
+          break;
+        }
+      }
+
+      logger.write({
+        severity: middlewareOptions.severity,
+        message: 'request',
+        ...(middlewareOptions.target.input ? { input } : {}),
+        ...(middlewareOptions.target.contexts ? { context } : {}),
+      });
+    }
+
+    const output: unknown = next(...parameters);
+
+    if (middlewareOptions.target.output) {
+      logger.write({
+        severity: middlewareOptions.severity,
+        message: 'response',
+        output,
+      });
+    }
   };

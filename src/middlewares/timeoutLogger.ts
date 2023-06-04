@@ -2,7 +2,13 @@ import { logger } from 'firebase-functions/v1';
 import { Middleware } from '..';
 
 export const timeoutLogger =
-  (): Middleware =>
+  (
+    middlewareOptions: {
+      timing: (timeoutSeconds: number) => number;
+    } = {
+      timing: (timeoutSeconds) => timeoutSeconds * 0.9,
+    }
+  ): Middleware =>
   async ({ functionType, options, parameters, next }) => {
     if (typeof options.timeoutSeconds === 'object') {
       logger.warn(
@@ -13,7 +19,7 @@ export const timeoutLogger =
     const timeoutSeconds = options.timeoutSeconds ?? 60;
     const timeout = setTimeout(() => {
       logger.error('timeout');
-    }, timeoutSeconds * 1000 * 0.9);
+    }, middlewareOptions.timing(timeoutSeconds) * 1000);
     try {
       return await next(...parameters);
     } finally {
