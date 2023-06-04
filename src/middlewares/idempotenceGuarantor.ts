@@ -22,7 +22,7 @@ export const idempotenceGuarantor =
     }
 
     if (context == null) {
-      return next(...(parameters as any));
+      return next(...parameters);
     }
 
     const firestore = await getFirestore();
@@ -44,5 +44,5 @@ export const idempotenceGuarantor =
       return;
     }
 
-    return next(...(parameters as any));
+    return next(...parameters);
   };

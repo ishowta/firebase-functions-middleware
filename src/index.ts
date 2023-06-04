@@ -99,7 +99,7 @@ function applyMiddlewares<FunctionType extends keyof FunctionsHandlers>(
       functionType,
       options,
       parameters,
-      next: async (...outputParameters: any[]) => {
+      next: async (...outputParameters: typeof parameters) => {
         result = await (handler as any)(...outputParameters);
         return result;
       },
@@ -137,7 +137,7 @@ export class FunctionBuilder {
         functionType,
         options,
         parameters,
-        next: (...nextParameters: any[]) =>
+        next: (...nextParameters: typeof parameters) =>
           middleware({
             functionType,
             options,
