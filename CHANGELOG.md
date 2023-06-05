@@ -1,3 +1,10 @@
+## [1.0.3](https://github.com/ishowta/firebase-functions-middleware/compare/v1.0.2...v1.0.3) (2023-06-05)
+
+
+### Bug Fixes
+
+* omit socket fields ([e83d187](https://github.com/ishowta/firebase-functions-middleware/commit/e83d187c31cbbb4baea9379c78a998d17878473d))
+
 ## [1.0.2](https://github.com/ishowta/firebase-functions-middleware/compare/v1.0.1...v1.0.2) (2023-06-05)
 
 
