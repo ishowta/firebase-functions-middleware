@@ -20,7 +20,7 @@ export const parameterLogger =
       severity: 'DEBUG',
     }
   ): Middleware =>
-  ({ functionType, options, parameters, next }) => {
+  async ({ functionType, options, parameters, next }) => {
     if (middlewareOptions.target.input || middlewareOptions.target.contexts) {
       let input: unknown = undefined;
       let context: unknown = undefined;
@@ -66,7 +66,7 @@ export const parameterLogger =
       });
     }
 
-    const output: unknown = next(...parameters);
+    const output: unknown = await next(...parameters);
 
     if (middlewareOptions.target.output) {
       logger.write({
@@ -75,4 +75,6 @@ export const parameterLogger =
         output,
       });
     }
+
+    return output;
   };

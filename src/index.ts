@@ -96,7 +96,7 @@ type MiddlewareParams = {
 
 export type Middleware = (
   params: MiddlewareParams[keyof FunctionsHandlers]
-) => void | Promise<void>;
+) => Promise<any>;
 
 export type DeploymentMiddleware = (params: {
   functionType: keyof FunctionsHandlers;
@@ -117,10 +117,8 @@ function applyMiddlewares<FunctionType extends keyof FunctionsHandlers>(
       functionType,
       options,
       parameters,
-      next: async (...outputParameters: typeof parameters) => {
-        result = await (handler as any)(...outputParameters);
-        return result;
-      },
+      next: (...outputParameters: typeof parameters) =>
+        (handler as any)(...outputParameters),
     } as any);
     return result;
   }) as any;
