@@ -34,7 +34,11 @@ export const parameterLogger =
           context = {
             ...callableContext,
             rawRequest: {
-              ...callableContext.rawRequest,
+              ...Object.fromEntries(
+                Object.entries(callableContext.rawRequest).filter(
+                  ([key]) => !key.startsWith('_')
+                )
+              ),
               rawBody: '[Filtered]',
               body: '[Filtered]',
               rawHeaders: callableContext.rawRequest.rawHeaders.map(
