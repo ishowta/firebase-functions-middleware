@@ -39,6 +39,7 @@ export const parameterLogger =
                   ([key]) => !key.startsWith('_')
                 )
               ),
+              socket: '[Filtered]',
               rawBody: '[Filtered]',
               body: '[Filtered]',
               rawHeaders: callableContext.rawRequest.rawHeaders.map(
