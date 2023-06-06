@@ -25,13 +25,10 @@ app.use(idempotenceGuarantor(getFirestore))
 app.use(timeoutLogger())
 app.use(({ functionType, options, parameters, next }) => {
     switch (functionType) {
-        case 'https.onRequest': {
-            const [req, resp] = parameters;
-            resp.status = (code: number) => {
-                logger.log(`status code: ${code}`);
-                return resp;
-            };
-            return next(req, resp);
+        case 'https.onCall': {
+            const [data, context] = parameters;
+            // ...
+            return next(data, context);
         }
         default:
             return next(...parameters);
