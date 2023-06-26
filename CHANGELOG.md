@@ -1,3 +1,10 @@
+## [1.0.4](https://github.com/ishowta/firebase-functions-middleware/compare/v1.0.3...v1.0.4) (2023-06-26)
+
+
+### Bug Fixes
+
+* fix value not return bug ([4540a38](https://github.com/ishowta/firebase-functions-middleware/commit/4540a3874f1fb8b19074e680eb2c3f4885ab8c52))
+
 ## [1.0.3](https://github.com/ishowta/firebase-functions-middleware/compare/v1.0.2...v1.0.3) (2023-06-05)
 
 
