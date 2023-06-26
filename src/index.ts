@@ -117,8 +117,10 @@ function applyMiddlewares<FunctionType extends keyof FunctionsHandlers>(
       functionType,
       options,
       parameters,
-      next: (...outputParameters: typeof parameters) =>
-        (handler as any)(...outputParameters),
+      next: async (...outputParameters: typeof parameters) => {
+        result = await (handler as any)(...outputParameters);
+        return result;
+      },
     } as any);
     return result;
   }) as any;
