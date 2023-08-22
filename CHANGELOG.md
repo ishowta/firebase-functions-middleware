@@ -1,3 +1,10 @@
+## [1.0.5](https://github.com/ishowta/firebase-functions-middleware/compare/v1.0.4...v1.0.5) (2023-08-22)
+
+
+### Bug Fixes
+
+* security update ([611e07a](https://github.com/ishowta/firebase-functions-middleware/commit/611e07a1466fd758a8c23c848d01cc59dffffa69))
+
 ## [1.0.4](https://github.com/ishowta/firebase-functions-middleware/compare/v1.0.3...v1.0.4) (2023-06-26)
 
 
