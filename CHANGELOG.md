@@ -1,3 +1,10 @@
+## [1.0.6](https://github.com/ishowta/firebase-functions-middleware/compare/v1.0.5...v1.0.6) (2024-02-21)
+
+
+### Bug Fixes
+
+* update package dependencies ([6f28b85](https://github.com/ishowta/firebase-functions-middleware/commit/6f28b85a2ecc4c4778b1bdd3548e8fed35e1bfac))
+
 ## [1.0.5](https://github.com/ishowta/firebase-functions-middleware/compare/v1.0.4...v1.0.5) (2023-08-22)
 
 
