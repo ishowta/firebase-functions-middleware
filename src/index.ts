@@ -3,7 +3,7 @@ import {
   DeploymentOptions,
   RuntimeOptions,
   ScheduleRetryConfig,
-} from 'firebase-functions';
+} from 'firebase-functions/v1';
 import {
   InstanceBuilder as OriginalInstanceBuilder,
   RefBuilder as OriginalRefBuilder,
