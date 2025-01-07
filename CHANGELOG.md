@@ -1,3 +1,10 @@
+## [1.0.8](https://github.com/ishowta/firebase-functions-middleware/compare/v1.0.7...v1.0.8) (2025-01-07)
+
+
+### Bug Fixes
+
+* compatible for firebase-functions v6 ([a0c09a2](https://github.com/ishowta/firebase-functions-middleware/commit/a0c09a20b0756b560513a17688f78e9943dfe2ee))
+
 ## [1.0.7](https://github.com/ishowta/firebase-functions-middleware/compare/v1.0.6...v1.0.7) (2024-05-08)
 
 
